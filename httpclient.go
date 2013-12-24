@@ -88,14 +88,16 @@ type Transport struct {
 	// This should never be less than the sum total of the above two timeouts.
 	RequestTimeout time.Duration
 
-	// Dialer, if non-nil, will serve as the underlying dialer that the http.Transport
+	// Dial, if non-nil, will serve as the underlying dialer that the http.Transport
 	// will use to establish connections. This can be useful when trying to instrument
 	// dialing behavior.
-	Dialer *net.Dialer
+	Dial Dialer
 
 	starter   sync.Once
 	transport *http.Transport
 }
+
+type Dialer func(network, addr string) (net.Conn, error)
 
 // Close cleans up the Transport, currently a no-op
 func (t *Transport) Close() error {
@@ -103,13 +105,12 @@ func (t *Transport) Close() error {
 }
 
 func (t *Transport) lazyStart() {
-	dialer := t.Dialer
-	if dialer == nil {
-		dialer = &net.Dialer{}
+	var dial Dialer = t.Dial
+	if dial == nil {
+		dial = (&net.Dialer{Timeout: t.ConnectTimeout}).Dial
 	}
-	dialer.Timeout = t.ConnectTimeout
 	t.transport = &http.Transport{
-		Dial:                  dialer.Dial,
+		Dial:                  dial,
 		Proxy:                 t.Proxy,
 		TLSClientConfig:       t.TLSClientConfig,
 		DisableKeepAlives:     t.DisableKeepAlives,
