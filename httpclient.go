@@ -34,7 +34,7 @@ func Version() string {
 // 	    RequestTimeout: 10*time.Second,
 // 	}
 // 	defer transport.Close()
-// 	
+//
 // 	client := &http.Client{Transport: transport}
 // 	req, _ := http.NewRequest("GET", "http://127.0.0.1/test", nil)
 // 	resp, err := client.Do(req)
@@ -88,6 +88,11 @@ type Transport struct {
 	// This should never be less than the sum total of the above two timeouts.
 	RequestTimeout time.Duration
 
+	// Dialer, if non-nil, will serve as the underlying dialer that the http.Transport
+	// will use to establish connections. This can be useful when trying to instrument
+	// dialing behavior.
+	Dialer *net.Dialer
+
 	starter   sync.Once
 	transport *http.Transport
 }
@@ -98,7 +103,11 @@ func (t *Transport) Close() error {
 }
 
 func (t *Transport) lazyStart() {
-	dialer := &net.Dialer{Timeout: t.ConnectTimeout}
+	dialer := t.Dialer
+	if dialer == nil {
+		dialer = &net.Dialer{}
+	}
+	dialer.Timeout = t.ConnectTimeout
 	t.transport = &http.Transport{
 		Dial:                  dialer.Dial,
 		Proxy:                 t.Proxy,
